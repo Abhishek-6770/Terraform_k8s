@@ -20,11 +20,12 @@ resource "libvirt_volume" "k8s_vm_disk" {
   format = "qcow2"
 }
 
-# Cloud-init for the master node
 resource "libvirt_cloudinit_disk" "master_init" {
-  name      = "master-init.iso"
+  name      = "master-init-${timestamp()}.iso"
+  pool      = "default"
   user_data = file("cloud-init-master.yaml")
 }
+
 
 # Cloud-init for worker nodes
 resource "libvirt_cloudinit_disk" "worker_init" {
