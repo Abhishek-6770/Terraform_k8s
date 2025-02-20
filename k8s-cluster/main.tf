@@ -13,11 +13,10 @@ provider "libvirt" {
 
 # Create VM disk images for 3 nodes (1 master + 2 workers)
 resource "libvirt_volume" "k8s_vm_disk" {
-  count  = 3
-  name   = "k8s-vm-${count.index}.qcow2"
-  pool   = "default"
-  source = "/var/lib/libvirt/images/ubuntu-20.04-server-cloudimg-amd64.img"  # Ensure this image is available locally
   format = "qcow2"
+  name   = "k8s-vm-0.qcow2"
+  pool   = "default"
+  source = "/home/ubuntu/images/ubuntu-20.04-server-cloudimg-amd64.img"
 }
 
 resource "libvirt_cloudinit_disk" "master_init" {
