@@ -18,7 +18,7 @@ resource "libvirt_volume" "k8s_vm_disk" {
   pool   = "default"
   source = "/var/lib/libvirt/images/ubuntu-20.04-server-cloudimg-amd64.img"  # Ensure this image is available locally
   format = "qcow2"
-  size   = "10G"
+  size   = "2 * 1024 * 1024 * 1024"
 }
 
 # Cloud-init for the master node
