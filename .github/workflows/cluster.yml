@@ -1,0 +1,103 @@
+name: Provision Kubernetes Cluster
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  # Step 1: Provision the master node only
+  provision-master:
+    runs-on: self-hosted
+    outputs:
+      master_ip: ${{ steps.get_master_ip.outputs.master_ip }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Initialize Terraform
+        working-directory: k8s-cluster
+        run: terraform init
+
+      - name: Apply Terraform (Master Only)
+        working-directory: k8s-cluster
+        run: terraform apply -auto-approve -target=libvirt_domain.k8s_master
+
+      - name: Get Master IP
+        working-directory: k8s-cluster
+        id: get_master_ip
+        run: |
+          master_ip=$(terraform output -raw master_ip)
+          echo "Master IP: $master_ip"
+          echo "::set-output name=master_ip::$master_ip"
+
+  # Step 2: Retrieve the kubeadm join command from the master
+  get-join-command:
+    runs-on: self-hosted
+    needs: provision-master
+    outputs:
+      join_command: ${{ steps.extract.outputs.join_command }}
+    steps:
+      - name: Retrieve Join Command from Master
+        id: extract
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ needs.provision-master.outputs.master_ip }}
+          username: ubuntu
+          # Provide the private key via GitHub Secrets (ensure your master accepts SSH with this key)
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Wait a few seconds to ensure master services are up
+            sleep 30
+            sudo kubeadm token create --print-join-command
+
+  # Step 3: Update the worker cloud‑init template with the actual join command
+  update-worker-cloudinit:
+    runs-on: ubuntu-latest
+    needs: get-join-command
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Update Worker Cloud-Init Template
+        run: |
+          # Replace the placeholder {{ join_command }} with the join command retrieved from the master
+          sed "s|{{ join_command }}|${{ needs.get-join-command.outputs.join_command }}|g" k8s-cluster/cloud-init-worker.tpl > k8s-cluster/cloud-init-worker.yaml
+          cat k8s-cluster/cloud-init-worker.yaml
+
+      - name: Commit Updated Cloud-Init File
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add k8s-cluster/cloud-init-worker.yaml
+          git commit -m "Update worker cloud-init with join command" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Step 4: Provision the worker nodes using the updated cloud-init file
+  provision-workers:
+    runs-on: self-hosted
+    needs: update-worker-cloudinit
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Initialize Terraform
+        working-directory: k8s-cluster
+        run: terraform init
+
+      - name: Apply Terraform (Workers Only)
+        working-directory: k8s-cluster
+        run: terraform apply -auto-approve -target=libvirt_domain.k8s_worker

@@ -1,0 +1,14 @@
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - apt-transport-https
+  - curl
+  - kubeadm
+  - kubelet
+  - kubectl
+
+runcmd:
+  - systemctl enable docker && systemctl start docker
+  # Join command injected automatically
+  - {{ join_command }}
