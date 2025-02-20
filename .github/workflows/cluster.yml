@@ -9,7 +9,7 @@ on:
 jobs:
   # Step 1: Provision the master node only
   provision-master:
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux, libvirt]
     outputs:
       master_ip: ${{ steps.get_master_ip.outputs.master_ip }}
     steps:
@@ -35,11 +35,11 @@ jobs:
         run: |
           master_ip=$(terraform output -raw master_ip)
           echo "Master IP: $master_ip"
-          echo "::set-output name=master_ip::$master_ip"
+          echo "master_ip=$master_ip" >> $GITHUB_OUTPUT
 
   # Step 2: Retrieve the kubeadm join command from the master
   get-join-command:
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux, libvirt]
     needs: provision-master
     outputs:
       join_command: ${{ steps.extract.outputs.join_command }}
@@ -83,7 +83,7 @@ jobs:
 
   # Step 4: Provision the worker nodes using the updated cloud-init file
   provision-workers:
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux, libvirt]
     needs: update-worker-cloudinit
     steps:
       - name: Checkout Repository
