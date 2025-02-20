@@ -23,6 +23,9 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '16'
+
+      - name: Adjust libvirt socket permissions
+        run: sudo chmod 666 /var/run/libvirt/libvirt-sock
         
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v2
